@@ -1,42 +1,60 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QTextEdit
-from PySide6.QtCore import QTimer
-import pyautogui
-from read_text import TextReader
-import numpy as np
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtGui import QPainter, QPen
+import mss
+import mss.tools
 
 
-class ResizableWindow(QMainWindow):
+class TransparentWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        
+        self.setWindowTitle("Transparent Window")
+        self.setGeometry(100, 100, 400, 200)
+        
+        # Make the window transparent
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        self.button = QPushButton("Capture", self)
+        self.button.resize(120, 30)
+        self.button.clicked.connect(self.capture_screen)
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
+        
+        # Calculate the transparent area rectangle
+        transparent_rect = QRect(0, 0, self.width() * 4 / 5, self.height())
+        
+        # Fill the transparent area with a transparent color
+        painter.fillRect(transparent_rect, Qt.transparent)
+        
+        # Calculate the opaque area rectangle
+        opaque_rect = QRect(self.width() * 4 / 5, 0, self.width() * 1 / 5, self.height())
+        
+        # Fill the opaque area with white color
+        painter.fillRect(opaque_rect, Qt.white)
+        
+        # Adjust button position to fit within the opaque area
+        button_x = self.width() * 4 / 5 + (self.width() * 1 / 5 - self.button.width()) // 2
+        button_y = (self.height() - self.button.height()) // 2
+        self.button.move(button_x, button_y)
+        
+    def capture_screen(self):
+        print("Capture button clicked")
+        # Capture the screen
+        with mss.mss() as sct:
+            monitor = {"top": self.geometry().top(), "left": self.geometry().left(), "width": int(self.width() * 4 / 5), "height": int(self.height())}  
+            sct_img = sct.grab(monitor)
+        
+        # Save the image directly
+        mss.tools.to_png(sct_img.rgb, sct_img.size, output="captured_image.png")
+        print("Image saved")
 
-        # Set window properties
-        self.setWindowTitle("Resizable Window")
-        self.setGeometry(100, 100, 800, 600)
-        self.setWindowOpacity(0.8)
-
-        # Create a text edit widget to display captured content
-        self.text_edit = QTextEdit(self)
-        self.setCentralWidget(self.text_edit)
-
-        # Timer to periodically capture content
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.capture_content)
-        self.timer.start(1000)  # Capture content every 1 second
-
-    def capture_content(self):
-        # Get window geometry
-        geometry = self.geometry()
-        left, top, width, height = geometry.left(), geometry.top(), geometry.width(), geometry.height()
-
-        # Capture the content inside the window
-        content = pyautogui.screenshot(region=(left, top, width, height))
-
-        # TODO: Process the captured content (e.g., OCR)
-        TextReader(np.array(content))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = ResizableWindow()
+    window = TransparentWindow()
     window.show()
     sys.exit(app.exec())
